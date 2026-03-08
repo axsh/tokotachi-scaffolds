@@ -1,0 +1,13 @@
+version: "1.0.0"
+
+default_scaffold: "default"
+
+scaffolds:
+  - name: "default"
+    category: "root"
+    description: "tokotachi 標準プロジェクト構成"
+    template_ref: "templates/project-default"
+    placement_ref: "placements/default.yaml"
+    requirements:
+      directories: []
+      files: []
