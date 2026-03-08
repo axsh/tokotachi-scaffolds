@@ -8,4 +8,7 @@ template_config:
 
 file_mappings: []
 
-post_actions: {}
+post_actions:
+  file_permissions:
+    - pattern: "scripts/**/*.sh"
+      executable: true

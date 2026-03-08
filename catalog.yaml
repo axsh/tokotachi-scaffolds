@@ -12,10 +12,27 @@ scaffolds:
       directories: []
       files: []
   - name: "axsh-go-standard"
-    category: "prompt"
-    description: "AXSH Go Standard Prompts"
-    template_ref: "templates/axsh/go-standard-prompts"
-    placement_ref: "placements/axsh/go-standard-prompts.yaml"
+    category: "project"
+    description: "AXSH Go Standard Project"
+    template_ref: "templates/axsh/go-standard-project"
+    placement_ref: "placements/axsh/go-standard-project.yaml"
     requirements:
-      directories: []
+      directories: ["prompts", "scripts"]
       files: []
+  - name: "axsh-go-standard"
+    category: "feature"
+    description: "AXSH Go Standard Feature"
+    template_ref: "templates/axsh/go-standard-feature"
+    placement_ref: "placements/axsh/go-standard-feature.yaml"
+    requirements:
+      directories: ["features"]
+      files: []
+    options:
+      - name: "feature_name"
+        description: "Feature name"
+        required: true
+        default: "myprog"
+      - name: "go_module"
+        description: "Go module base name"
+        required: false
+        default: "github.com/axsh/tokotachi/features"
