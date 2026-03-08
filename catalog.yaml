@@ -5,7 +5,7 @@ default_scaffold: "default"
 scaffolds:
   - name: "default"
     category: "root"
-    description: "tokotachi 標準プロジェクト構成"
+    description: "Tokotachi - The First of All"
     template_ref: "templates/project-default"
     placement_ref: "placements/default.yaml"
     requirements:
