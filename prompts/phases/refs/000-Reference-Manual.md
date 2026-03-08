@@ -156,6 +156,9 @@ file_mappings:
 post_actions:
   gitignore_entries:            # .gitignore に追記するエントリ
     - "work/*"
+  file_permissions:             # ファイルパーミッション設定
+    - pattern: "scripts/**/*.sh"
+      executable: true
 ```
 
 ### コンフリクト解決ポリシー
@@ -175,7 +178,25 @@ post_actions:
 ### 後処理アクション (`post_actions`)
 
 - `gitignore_entries`: `.gitignore` に追記するパターン。既存エントリと重複する場合はスキップ
-- 将来の拡張ポイント: `shell_commands`, `file_permissions` 等（現在未実装）
+- `file_permissions`: ファイルパーミッションの設定ルール（配列）
+  - `pattern`: グロブパターン（`**` による再帰マッチング対応）
+  - `executable`: `true` に設定すると `0755` パーミッションを付与（`mode` の糖衣構文）
+  - `mode`: 8進数文字列（例: `"0600"`, `"0644"`, `"0755"`）で明示的にパーミッションを設定
+  - `executable` と `mode` の両方が指定された場合、`mode` が優先される
+  - どちらか一方は必ず指定する必要がある
+
+```yaml
+post_actions:
+  gitignore_entries:
+    - "work/*"
+  file_permissions:
+    - pattern: "scripts/**/*.sh"   # スクリプトファイルに実行権限を付与
+      executable: true
+    - pattern: "secrets/**/*"      # シークレットファイルのアクセスを制限
+      mode: "0600"
+```
+
+> **注意**: Windows 環境では `os.Chmod` による Unix パーミッションビットのサポートが限定的です。Git の `core.fileMode` 設定に依存します。
 
 ---
 
@@ -209,10 +230,10 @@ devctl scaffold [category] [name]
      ├─ templates/<ref>/base/ をダウンロード
      ├─ locale オーバーレイを適用（該当言語があれば）
      ├─ テンプレート変数を適用（.tmpl ファイル）
-     ├─ 実行計画を表示（dry-run + コンフリクト判定）
+     ├─ 実行計画を表示（dry-run + コンフリクト判定 + パーミッション変更予定）
      ├─ ユーザー確認 [y/N]
      ├─ チェックポイント作成（git stash）
      ├─ ファイル配置（conflict_policy に従う）
-     ├─ 後処理（gitignore 追記等）
+     ├─ 後処理（gitignore 追記 + ファイルパーミッション適用）
      └─ 完了
 ```
