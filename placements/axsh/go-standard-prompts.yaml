@@ -1,0 +1,11 @@
+version: "1.0.0"
+base_dir: "."
+conflict_policy: "skip"
+
+template_config:
+  template_extension: ".tmpl"
+  strip_extension: true
+
+file_mappings: []
+
+post_actions: {}

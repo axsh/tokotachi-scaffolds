@@ -6,8 +6,16 @@ scaffolds:
   - name: "default"
     category: "root"
     description: "Tokotachi - The First of All"
-    template_ref: "templates/project-default"
+    template_ref: "templates/root/project-default"
     placement_ref: "placements/default.yaml"
+    requirements:
+      directories: []
+      files: []
+  - name: "axsh-go-standard"
+    category: "prompt"
+    description: "AXSH Go Standard Prompts"
+    template_ref: "templates/axsh/go-standard-prompts"
+    placement_ref: "placements/axsh/go-standard-prompts.yaml"
     requirements:
       directories: []
       files: []
