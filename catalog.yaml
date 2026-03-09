@@ -6,24 +6,27 @@ scaffolds:
   - name: "default"
     category: "root"
     description: "Tokotachi - The First of All"
-    template_ref: "templates/root/project-default"
-    placement_ref: "placements/default.yaml"
+    template_ref: "catalog/templates/root/project-default"
+    original_ref: "catalog/originals/root/project-default"
+    placement_ref: "catalog/placements/default.yaml"
     requirements:
       directories: []
       files: []
   - name: "axsh-go-standard"
     category: "project"
     description: "AXSH Go Standard Project"
-    template_ref: "templates/axsh/go-standard-project"
-    placement_ref: "placements/axsh/go-standard-project.yaml"
+    template_ref: "catalog/templates/axsh/go-standard-project"
+    original_ref: "catalog/originals/axsh/go-standard-project"
+    placement_ref: "catalog/placements/axsh/go-standard-project.yaml"
     requirements:
       directories: ["prompts", "scripts"]
       files: []
   - name: "axsh-go-standard"
     category: "feature"
     description: "AXSH Go Standard Feature"
-    template_ref: "templates/axsh/go-standard-feature"
-    placement_ref: "placements/axsh/go-standard-feature.yaml"
+    template_ref: "catalog/templates/axsh/go-standard-feature"
+    original_ref: "catalog/originals/axsh/go-standard-feature"
+    placement_ref: "catalog/placements/axsh/go-standard-feature.yaml"
     requirements:
       directories: ["features"]
       files: []
