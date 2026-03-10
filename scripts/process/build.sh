@@ -12,8 +12,9 @@ set -euo pipefail
 #   ./scripts/process/build.sh [OPTIONS]
 #
 # Options:
-#   --backend-only   Run only the Go backend build & tests
-#   --help           Show this help message
+#   --skip-tools       Skip building Go tools (features/)
+#   --skip-scaffolds   Skip building originals (catalog/originals/)
+#   --help             Show this help message
 #
 # Exit Codes:
 #   0 = All builds and tests passed
@@ -47,7 +48,9 @@ Builds the entire project and runs unit tests.
 Integration tests (under tests/) are excluded.
 
 Options:
-  --help           Show this help message
+  --skip-tools       Skip building Go tools (features/)
+  --skip-scaffolds   Skip building originals (catalog/originals/)
+  --help             Show this help message
 
 Exit Codes:
   0 = All builds and tests passed
@@ -61,9 +64,19 @@ EOF
 }
 
 # --- Argument Parsing ---
+SKIP_TOOLS=false
+SKIP_SCAFFOLDS=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --skip-tools)
+            SKIP_TOOLS=true
+            shift
+            ;;
+        --skip-scaffolds)
+            SKIP_SCAFFOLDS=true
+            shift
+            ;;
         --help|-h)
             show_help
             exit 0
@@ -221,8 +234,17 @@ main() {
 
     local start_time=$SECONDS
 
-    build_go
-    build_originals
+    if [[ "$SKIP_TOOLS" == "false" ]]; then
+        build_go
+    else
+        info "Skipping Go tools build (--skip-tools)"
+    fi
+
+    if [[ "$SKIP_SCAFFOLDS" == "false" ]]; then
+        build_originals
+    else
+        info "Skipping originals build (--skip-scaffolds)"
+    fi
 
     local elapsed=$(( SECONDS - start_time ))
     echo ""

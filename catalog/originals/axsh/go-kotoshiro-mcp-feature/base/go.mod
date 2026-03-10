@@ -1,4 +1,4 @@
-module github.com/axsh/tokotachi-scaffolds/catalog/originals/axsh/go-kotoshiro-mcp-feature/base
+module github.com/axsh/tokotachi-scaffolds/axsh/go-kotoshiro-mcp-feature
 
 go 1.24.1
 
