@@ -1,7 +1,7 @@
 package main
 
 import (
-	"function/internal/function"
+	"github.com/axsh/tokotachi-scaffolds/catalog/originals/axsh/go-kotoshiro-mcp-feature/base/internal/function"
 
 	"github.com/axsh/kuniumi"
 )

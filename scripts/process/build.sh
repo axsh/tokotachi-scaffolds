@@ -145,6 +145,71 @@ build_go() {
 }
 
 # ============================================================
+# Originals Build & Unit Test
+# ============================================================
+build_originals() {
+    step "Originals: Build & Unit Test"
+
+    cd "$PROJECT_ROOT"
+
+    local found_any=false
+    while IFS= read -r gomod_path; do
+        local mod_dir
+        mod_dir=$(dirname "$gomod_path")
+
+        found_any=true
+        local rel_dir
+        rel_dir=$(echo "$mod_dir" | sed "s|^$PROJECT_ROOT/||")
+
+        step "Original: $rel_dir"
+        cd "$mod_dir"
+
+        # --- Unit Tests (exclude integration/) ---
+        info "Running Go unit tests for $rel_dir..."
+        UNIT_PKGS=$(go list ./... | grep -v '/integration/' | grep -v '/integration$' || true)
+
+        if [[ -z "$UNIT_PKGS" ]]; then
+            warn "No Go unit test packages found for $rel_dir."
+        elif echo "$UNIT_PKGS" | xargs go test -v -count=1; then
+            success "Unit tests passed for $rel_dir."
+        else
+            fail "Unit tests failed for $rel_dir."
+            FAILED=true
+            cd "$PROJECT_ROOT"
+            return 1
+        fi
+
+        # --- Build (output binary to bin/) ---
+        # Derive binary name from the parent directory of go.mod
+        # e.g. catalog/originals/axsh/go-kotoshiro-mcp-feature/base -> go-kotoshiro-mcp-feature
+        local bin_name
+        bin_name=$(basename "$(dirname "$mod_dir")")
+
+        local build_target="."
+        if [[ -d "$mod_dir/cmd" ]]; then
+            build_target="./cmd/"
+        fi
+
+        info "Building $rel_dir -> bin/$bin_name ..."
+        if go build -o "$PROJECT_ROOT/bin/$bin_name" "$build_target"; then
+            success "Build succeeded for $rel_dir → bin/$bin_name"
+        else
+            fail "Build failed for $rel_dir."
+            FAILED=true
+            cd "$PROJECT_ROOT"
+            return 1
+        fi
+
+        cd "$PROJECT_ROOT"
+    done < <(find "$PROJECT_ROOT/catalog/originals" -name "go.mod" -type f 2>/dev/null)
+
+    if [[ "$found_any" == "false" ]]; then
+        warn "No Go projects found under catalog/originals/."
+        return 0
+    fi
+}
+
+# ============================================================
 # Main
 # ============================================================
 main() {
@@ -157,6 +222,7 @@ main() {
     local start_time=$SECONDS
 
     build_go
+    build_originals
 
     local elapsed=$(( SECONDS - start_time ))
     echo ""

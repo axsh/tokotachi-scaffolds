@@ -1,0 +1,20 @@
+scaffolds:
+    - name: axsh-go-standard
+      category: feature
+      description: AXSH Go Standard Feature
+      depends_on:
+        - category: project
+          name: axsh-go-standard
+      template_ref: catalog/scaffolds/b/i/b/go-standard-feature.zip
+      original_ref: catalog/originals/axsh/go-standard-feature
+      template_params:
+        - name: module_path
+          description: Go module path
+          required: true
+          default: github.com/axsh/tokotachi/features/myprog
+          old_value: ""
+        - name: program_name
+          description: Program name
+          required: true
+          default: myprog
+          old_value: ""
