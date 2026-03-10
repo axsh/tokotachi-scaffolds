@@ -59,6 +59,9 @@ func main() {
 	}
 
 	baseDir := result.BaseDir
+	// repoRoot is the parent of baseDir (e.g. parent of catalog/).
+	// Used when joining with repo-root-relative paths like OriginalRef or ScaffoldShardPath.
+	repoRoot := filepath.Dir(baseDir)
 	defs := result.Definitions
 	fmt.Printf("Discovered originals: %s\n", result.OriginalsDir)
 
@@ -77,7 +80,7 @@ func main() {
 	// Process each scaffold (template conversion + ZIP to temp).
 	zipPaths := make(map[string]string) // scaffoldKey -> tempZipPath
 	for _, s := range scaffolds {
-		tempZip, err := processScaffold(baseDir, s)
+		tempZip, err := processScaffold(repoRoot, s)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error processing scaffold %q: %v\n", s.Name, err)
 			os.Exit(1)
@@ -88,11 +91,11 @@ func main() {
 
 	// Generate shard files + move ZIPs to shard directories.
 	fmt.Println("Generating shard files...")
-	if err := cleanScaffoldsDir(baseDir); err != nil {
+	if err := cleanScaffoldsDir(repoRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	if err := generateShardFiles(baseDir, scaffolds, zipPaths); err != nil {
+	if err := generateShardFiles(repoRoot, scaffolds, zipPaths); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -132,8 +135,8 @@ func convertDefinitionsToScaffolds(defs []catalog.ScaffoldDefinition) []catalog.
 // processScaffold copies originals to a temp directory, runs template conversion,
 // creates a ZIP archive, and returns the path to the temp ZIP file.
 // The temp ZIP file will be moved to the shard directory by generateShardFiles.
-func processScaffold(baseDir string, s catalog.Scaffold) (string, error) {
-	originalDir := filepath.Join(baseDir, s.OriginalRef)
+func processScaffold(repoRoot string, s catalog.Scaffold) (string, error) {
+	originalDir := filepath.Join(repoRoot, s.OriginalRef)
 
 	// Create temporary directory for working copy.
 	tempDir, err := os.MkdirTemp("", "templatizer-*")
@@ -173,8 +176,8 @@ func processScaffold(baseDir string, s catalog.Scaffold) (string, error) {
 
 // cleanScaffoldsDir removes the existing catalog/scaffolds/ directory
 // to ensure a clean state before regenerating shard files.
-func cleanScaffoldsDir(baseDir string) error {
-	scaffoldsDir := filepath.Join(baseDir, "catalog", "scaffolds")
+func cleanScaffoldsDir(repoRoot string) error {
+	scaffoldsDir := filepath.Join(repoRoot, "catalog", "scaffolds")
 	if err := os.RemoveAll(scaffoldsDir); err != nil {
 		return fmt.Errorf("failed to clean scaffolds directory: %w", err)
 	}
@@ -183,7 +186,7 @@ func cleanScaffoldsDir(baseDir string) error {
 
 // generateShardFiles groups scaffolds by hash, writes shard YAML files,
 // moves ZIP files to shard directories, and sets template_ref.
-func generateShardFiles(baseDir string, scaffolds []catalog.Scaffold, zipPaths map[string]string) error {
+func generateShardFiles(repoRoot string, scaffolds []catalog.Scaffold, zipPaths map[string]string) error {
 	// Group scaffolds by hash.
 	groups := make(map[string][]catalog.Scaffold)
 	for _, s := range scaffolds {
@@ -207,7 +210,7 @@ func generateShardFiles(baseDir string, scaffolds []catalog.Scaffold, zipPaths m
 
 	// Write shard files + move ZIPs.
 	for h, group := range groups {
-		shardPath := filepath.Join(baseDir, catalog.ScaffoldShardPath(h))
+		shardPath := filepath.Join(repoRoot, catalog.ScaffoldShardPath(h))
 		shardDir := filepath.Dir(shardPath)
 
 		// Create parent directories.
