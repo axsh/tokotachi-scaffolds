@@ -14,21 +14,53 @@ import (
 	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/copier"
 )
 
+// parseArgs parses CLI arguments and returns the search root directory.
+// Prints usage and exits when --help/-h is given or no arguments are provided.
+func parseArgs(args []string) string {
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			printUsage()
+			os.Exit(0)
+		}
+	}
+	if len(args) == 0 {
+		printUsage()
+		os.Exit(1)
+	}
+	return args[0]
+}
+
+// printUsage prints the help message to stderr.
+func printUsage() {
+	fmt.Fprintf(os.Stderr, `templatizer - Scan originals and generate scaffold templates
+
+Usage:
+  templatizer <search-root-dir>
+  templatizer --help
+
+Arguments:
+  <search-root-dir>  Root directory to search for 'originals' directories
+
+Examples:
+  templatizer .
+  templatizer ./catalog
+`)
+}
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <base-dir>\n", os.Args[0])
-		os.Exit(1)
-	}
+	// Parse CLI arguments.
+	searchRoot := parseArgs(os.Args[1:])
 
-	baseDir := os.Args[1]
-
-	// Scan originals/ for scaffold.yaml files.
-	originalsDir := filepath.Join(baseDir, "catalog", "originals")
-	defs, err := catalog.ScanScaffoldDefinitions(originalsDir)
+	// Discover originals directory by recursive search.
+	result, err := catalog.DiscoverOriginals(searchRoot)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error scanning scaffold definitions: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+
+	baseDir := result.BaseDir
+	defs := result.Definitions
+	fmt.Printf("Discovered originals: %s\n", result.OriginalsDir)
 
 	// Convert ScaffoldDefinition to Scaffold.
 	scaffolds := convertDefinitionsToScaffolds(defs)
