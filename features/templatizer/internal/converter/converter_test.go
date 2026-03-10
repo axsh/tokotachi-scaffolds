@@ -1,0 +1,188 @@
+package converter
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/catalog"
+)
+
+func TestConvert(t *testing.T) {
+	t.Run("full pipeline execution", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Set up a realistic project structure.
+		// go.mod
+		mustWriteFile(t, filepath.Join(tmpDir, "go.mod"),
+			"module old-org/old-app\n\ngo 1.24.0\n")
+
+		// .git directory (should be cleaned up)
+		mustMkdir(t, filepath.Join(tmpDir, ".git"))
+		mustWriteFile(t, filepath.Join(tmpDir, ".git", "config"), "gitconfig")
+
+		// go.sum (should be cleaned up)
+		mustWriteFile(t, filepath.Join(tmpDir, "go.sum"), "checksum data")
+
+		// cmd/old-app/main.go (has import to transform)
+		mustMkdir(t, filepath.Join(tmpDir, "cmd", "old-app"))
+		mustWriteFile(t, filepath.Join(tmpDir, "cmd", "old-app", "main.go"),
+			"package main\n\nimport \"old-org/old-app/internal/pkg\"\n\nfunc main() {}\n")
+
+		// internal/pkg/pkg.go (no import to transform)
+		mustMkdir(t, filepath.Join(tmpDir, "internal", "pkg"))
+		mustWriteFile(t, filepath.Join(tmpDir, "internal", "pkg", "pkg.go"),
+			"package pkg\n\nfunc Hello() string { return \"hello\" }\n")
+
+		// Makefile + Makefile.hints
+		mustWriteFile(t, filepath.Join(tmpDir, "Makefile"),
+			"APP=old-app\nMODULE=old-org/old-app\n")
+		mustWriteFile(t, filepath.Join(tmpDir, "Makefile.hints"),
+			"replacements:\n  - match: \"old-app\"\n    replace_with: \"{{program_name}}\"\n  - match: \"old-org/old-app\"\n    replace_with: \"{{module_path}}\"\n")
+
+		params := ConvertParams{
+			OldModule:  "old-org/old-app",
+			NewModule:  "github.com/new-org/new-app",
+			OldProgram: "old-app",
+			NewProgram: "new-app",
+			HintParams: map[string]string{
+				"program_name": "new-app",
+				"module_path":  "github.com/new-org/new-app",
+			},
+		}
+
+		err := Convert(tmpDir, params)
+		if err != nil {
+			t.Fatalf("Convert() error: %v", err)
+		}
+
+		// Step1: Cleanup — .git and go.sum should be removed
+		assertNotExists(t, tmpDir, ".git")
+		assertNotExists(t, tmpDir, "go.sum")
+
+		// Step2: AST transform — go.mod.tmpl should exist
+		assertExists(t, tmpDir, "go.mod.tmpl")
+		assertNotExists(t, tmpDir, "go.mod")
+		goModContent := mustReadFile(t, filepath.Join(tmpDir, "go.mod.tmpl"))
+		assertContains(t, goModContent, "module github.com/new-org/new-app")
+
+		// Step2: AST transform — main.go.tmpl should exist with transformed import
+		assertExists(t, tmpDir, filepath.Join("cmd", "new-app", "main.go.tmpl"))
+		mainContent := mustReadFile(t, filepath.Join(tmpDir, "cmd", "new-app", "main.go.tmpl"))
+		assertContains(t, mainContent, "github.com/new-org/new-app/internal/pkg")
+
+		// Step2: non-transformed file should remain without .tmpl
+		assertExists(t, tmpDir, filepath.Join("internal", "pkg", "pkg.go"))
+		assertNotExists(t, tmpDir, filepath.Join("internal", "pkg", "pkg.go.tmpl"))
+
+		// Step3: Directory rename — cmd/old-app should be gone
+		assertNotExists(t, tmpDir, filepath.Join("cmd", "old-app"))
+		assertExists(t, tmpDir, filepath.Join("cmd", "new-app"))
+
+		// Step4: Hints — Makefile.tmpl should exist with replacements applied
+		assertExists(t, tmpDir, "Makefile.tmpl")
+		assertNotExists(t, tmpDir, "Makefile")
+		assertNotExists(t, tmpDir, "Makefile.hints")
+		makefileContent := mustReadFile(t, filepath.Join(tmpDir, "Makefile.tmpl"))
+		assertContains(t, makefileContent, "APP=new-app")
+		assertContains(t, makefileContent, "MODULE=github.com/new-org/new-app")
+	})
+
+	t.Run("no template_params skips conversion", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		mustWriteFile(t, filepath.Join(tmpDir, "main.go"), "package main\nfunc main() {}\n")
+
+		params := ConvertParams{}
+
+		err := Convert(tmpDir, params)
+		if err != nil {
+			t.Fatalf("Convert() error: %v", err)
+		}
+
+		// File should still exist unchanged (no .tmpl)
+		assertExists(t, tmpDir, "main.go")
+	})
+}
+
+func TestBuildConvertParamsOldValueFallback(t *testing.T) {
+	t.Run("falls back to default when old_value is empty", func(t *testing.T) {
+		params := BuildConvertParams([]catalog.TemplateParam{
+			{
+				Name:     "module_path",
+				Default:  "github.com/axsh/tokotachi/features/myprog",
+				OldValue: "", // empty → should fallback to Default
+			},
+			{
+				Name:     "program_name",
+				Default:  "myprog",
+				OldValue: "", // empty → should fallback to Default
+			},
+		})
+
+		if params.OldModule != "github.com/axsh/tokotachi/features/myprog" {
+			t.Errorf("OldModule = %q, want %q", params.OldModule, "github.com/axsh/tokotachi/features/myprog")
+		}
+		if params.OldProgram != "myprog" {
+			t.Errorf("OldProgram = %q, want %q", params.OldProgram, "myprog")
+		}
+		if params.HintParams["module_path"] != "github.com/axsh/tokotachi/features/myprog" {
+			t.Errorf("HintParams[module_path] = %q, want %q", params.HintParams["module_path"], "github.com/axsh/tokotachi/features/myprog")
+		}
+	})
+
+	t.Run("explicit old_value takes priority over default", func(t *testing.T) {
+		params := BuildConvertParams([]catalog.TemplateParam{
+			{
+				Name:     "module_path",
+				Default:  "something-else",
+				OldValue: "function", // explicit → should be used
+			},
+			{
+				Name:     "program_name",
+				Default:  "other-name",
+				OldValue: "function", // explicit → should be used
+			},
+		})
+
+		if params.OldModule != "function" {
+			t.Errorf("OldModule = %q, want %q", params.OldModule, "function")
+		}
+		if params.OldProgram != "function" {
+			t.Errorf("OldProgram = %q, want %q", params.OldProgram, "function")
+		}
+	})
+}
+
+// --- Test helpers ---
+
+func assertExists(t *testing.T, base string, relPath string) {
+	t.Helper()
+	p := filepath.Join(base, relPath)
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		t.Errorf("expected %q to exist, but it does not", relPath)
+	}
+}
+
+func assertNotExists(t *testing.T, base string, relPath string) {
+	t.Helper()
+	p := filepath.Join(base, relPath)
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Errorf("expected %q to NOT exist, but it does", relPath)
+	}
+}
+
+func assertContains(t *testing.T, content, substr string) {
+	t.Helper()
+	if !containsStr(content, substr) {
+		t.Errorf("expected content to contain %q, got:\n%s", substr, content)
+	}
+}
+
+func mustReadFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file %s: %v", path, err)
+	}
+	return string(data)
+}

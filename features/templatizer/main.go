@@ -4,41 +4,282 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/archiver"
 	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/catalog"
+	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/converter"
+	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/copier"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <catalog.yaml>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <base-dir>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	catalogPath := os.Args[1]
+	baseDir := os.Args[1]
 
-	cat, err := catalog.LoadCatalog(catalogPath)
+	// Scan originals/ for scaffold.yaml files.
+	originalsDir := filepath.Join(baseDir, "catalog", "originals")
+	defs, err := catalog.ScanScaffoldDefinitions(originalsDir)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error scanning scaffold definitions: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Convert ScaffoldDefinition to Scaffold.
+	scaffolds := convertDefinitionsToScaffolds(defs)
+
+	// Validate dependency references and detect circular dependencies.
+	tempCat := &catalog.Catalog{Scaffolds: scaffolds}
+	if err := tempCat.ValidateDependencies(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: dependency validation failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Processing %d scaffold(s)...\n", len(scaffolds))
+
+	// Process each scaffold (template conversion + ZIP to temp).
+	zipPaths := make(map[string]string) // scaffoldKey -> tempZipPath
+	for _, s := range scaffolds {
+		tempZip, err := processScaffold(baseDir, s)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error processing scaffold %q: %v\n", s.Name, err)
+			os.Exit(1)
+		}
+		key := s.Category + "/" + s.Name
+		zipPaths[key] = tempZip
+	}
+
+	// Generate shard files + move ZIPs to shard directories.
+	fmt.Println("Generating shard files...")
+	if err := cleanScaffoldsDir(baseDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if err := generateShardFiles(baseDir, scaffolds, zipPaths); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Resolve paths relative to the directory containing catalog.yaml
-	baseDir := filepath.Dir(catalogPath)
+	// Write meta.yaml to top-level.
+	if err := writeMetaCatalog(baseDir, "1.0.0", "default"); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 
-	fmt.Printf("Processing %d scaffold(s)...\n", len(cat.Scaffolds))
+	// Write catalog.yaml (index) to top-level.
+	index := catalog.BuildCatalogIndex(scaffolds)
+	if err := writeCatalogIndex(baseDir, index); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 
-	for _, s := range cat.Scaffolds {
-		originalDir := filepath.Join(baseDir, s.OriginalRef)
-		zipPath := filepath.Join(baseDir, s.TemplateRef+".zip")
+	fmt.Println("Done. All scaffolds archived and sharded successfully.")
+}
 
-		fmt.Printf("  Archiving %s -> %s\n", originalDir, zipPath)
+// convertDefinitionsToScaffolds converts ScaffoldDefinition slice to Scaffold slice.
+func convertDefinitionsToScaffolds(defs []catalog.ScaffoldDefinition) []catalog.Scaffold {
+	scaffolds := make([]catalog.Scaffold, len(defs))
+	for i, d := range defs {
+		scaffolds[i] = catalog.Scaffold{
+			Name:           d.Name,
+			Category:       d.Category,
+			Description:    d.Description,
+			DependsOn:      d.DependsOn,
+			OriginalRef:    d.OriginalRef,
+			TemplateParams: d.TemplateParams,
+		}
+	}
+	return scaffolds
+}
 
-		if err := archiver.ZipDirectory(originalDir, zipPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error archiving scaffold %q: %v\n", s.Name, err)
-			os.Exit(1)
+// processScaffold copies originals to a temp directory, runs template conversion,
+// creates a ZIP archive, and returns the path to the temp ZIP file.
+// The temp ZIP file will be moved to the shard directory by generateShardFiles.
+func processScaffold(baseDir string, s catalog.Scaffold) (string, error) {
+	originalDir := filepath.Join(baseDir, s.OriginalRef)
+
+	// Create temporary directory for working copy.
+	tempDir, err := os.MkdirTemp("", "templatizer-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	fmt.Printf("  [%s] Copying %s -> %s\n", s.Name, originalDir, tempDir)
+
+	// Copy originals to temp directory.
+	if err := copier.CopyDir(originalDir, tempDir); err != nil {
+		return "", fmt.Errorf("failed to copy originals to temp: %w", err)
+	}
+
+	// Run template conversion pipeline if template_params are defined.
+	if len(s.TemplateParams) > 0 {
+		params := converter.BuildConvertParams(s.TemplateParams)
+		fmt.Printf("  [%s] Converting (module: %s -> %s)\n", s.Name, params.OldModule, params.NewModule)
+		if err := converter.Convert(tempDir, params); err != nil {
+			return "", fmt.Errorf("template conversion failed: %w", err)
 		}
 	}
 
-	fmt.Println("Done. All scaffolds archived successfully.")
+	// Create ZIP in a temp location.
+	basename := filepath.Base(s.OriginalRef)
+	tempZip := filepath.Join(os.TempDir(), fmt.Sprintf("templatizer-%s-%s.zip", s.Category, basename))
+	fmt.Printf("  [%s] Archiving %s -> %s\n", s.Name, tempDir, tempZip)
+
+	if err := archiver.ZipDirectory(tempDir, tempZip); err != nil {
+		return "", fmt.Errorf("failed to create ZIP archive: %w", err)
+	}
+
+	fmt.Printf("  [%s] Done (temp cleaned up)\n", s.Name)
+	return tempZip, nil
+}
+
+// cleanScaffoldsDir removes the existing catalog/scaffolds/ directory
+// to ensure a clean state before regenerating shard files.
+func cleanScaffoldsDir(baseDir string) error {
+	scaffoldsDir := filepath.Join(baseDir, "catalog", "scaffolds")
+	if err := os.RemoveAll(scaffoldsDir); err != nil {
+		return fmt.Errorf("failed to clean scaffolds directory: %w", err)
+	}
+	return nil
+}
+
+// generateShardFiles groups scaffolds by hash, writes shard YAML files,
+// moves ZIP files to shard directories, and sets template_ref.
+func generateShardFiles(baseDir string, scaffolds []catalog.Scaffold, zipPaths map[string]string) error {
+	// Group scaffolds by hash.
+	groups := make(map[string][]catalog.Scaffold)
+	for _, s := range scaffolds {
+		h := catalog.ScaffoldHash(s.Category, s.Name)
+		groups[h] = append(groups[h], s)
+	}
+
+	// Report collisions.
+	for h, group := range groups {
+		if len(group) > 1 {
+			fmt.Printf("  [COLLISION] hash=%s: ", h)
+			for i, s := range group {
+				if i > 0 {
+					fmt.Print(", ")
+				}
+				fmt.Printf("%s/%s", s.Category, s.Name)
+			}
+			fmt.Println()
+		}
+	}
+
+	// Write shard files + move ZIPs.
+	for h, group := range groups {
+		shardPath := filepath.Join(baseDir, catalog.ScaffoldShardPath(h))
+		shardDir := filepath.Dir(shardPath)
+
+		// Create parent directories.
+		if err := os.MkdirAll(shardDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create shard directory for hash %s: %w", h, err)
+		}
+
+		// Determine ZIP file names and move ZIPs, handling collisions.
+		usedNames := make(map[string]bool)
+		for i := range group {
+			s := &group[i]
+			key := s.Category + "/" + s.Name
+			basename := filepath.Base(s.OriginalRef)
+
+			// Resolve ZIP filename collision.
+			zipName := basename + ".zip"
+			if usedNames[zipName] {
+				n := 2
+				for {
+					zipName = fmt.Sprintf("%s-%d.zip", basename, n)
+					if !usedNames[zipName] {
+						break
+					}
+					n++
+				}
+			}
+			usedNames[zipName] = true
+
+			// Set template_ref to the shard directory path.
+			relShardDir := filepath.ToSlash(filepath.Dir(catalog.ScaffoldShardPath(h)))
+			s.TemplateRef = relShardDir + "/" + zipName
+
+			// Move ZIP from temp to shard directory.
+			srcZip := zipPaths[key]
+			dstZip := filepath.Join(shardDir, zipName)
+			if err := moveFile(srcZip, dstZip); err != nil {
+				return fmt.Errorf("failed to move ZIP for %s: %w", key, err)
+			}
+
+			fmt.Printf("  [ZIP] %s -> %s\n", key, dstZip)
+		}
+
+		shard := catalog.ShardFile{Scaffolds: group}
+		data, err := yaml.Marshal(&shard)
+		if err != nil {
+			return fmt.Errorf("failed to marshal shard file for hash %s: %w", h, err)
+		}
+
+		if err := os.WriteFile(shardPath, data, 0o644); err != nil {
+			return fmt.Errorf("failed to write shard file %s: %w", shardPath, err)
+		}
+
+		fmt.Printf("  [SHARD] %s -> %s (%d scaffold(s))\n", h, shardPath, len(group))
+	}
+
+	return nil
+}
+
+// moveFile moves a file from src to dst by copying and removing.
+func moveFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return err
+	}
+	return os.Remove(src)
+}
+
+// writeMetaCatalog writes meta.yaml to the top-level directory.
+func writeMetaCatalog(baseDir, version, defaultScaffold string) error {
+	meta := catalog.MetaCatalog{
+		Version:         version,
+		DefaultScaffold: defaultScaffold,
+		UpdatedAt:       time.Now().Format(time.RFC3339),
+	}
+
+	data, err := yaml.Marshal(&meta)
+	if err != nil {
+		return fmt.Errorf("failed to marshal meta catalog: %w", err)
+	}
+
+	metaPath := filepath.Join(baseDir, "meta.yaml")
+	if err := os.WriteFile(metaPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write meta.yaml: %w", err)
+	}
+
+	fmt.Printf("  [META] %s generated\n", metaPath)
+	return nil
+}
+
+// writeCatalogIndex writes catalog.yaml (index) to the top-level directory.
+func writeCatalogIndex(baseDir string, index *catalog.CatalogIndex) error {
+	data, err := yaml.Marshal(index)
+	if err != nil {
+		return fmt.Errorf("failed to marshal catalog index: %w", err)
+	}
+
+	indexPath := filepath.Join(baseDir, "catalog.yaml")
+	if err := os.WriteFile(indexPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write catalog.yaml index: %w", err)
+	}
+
+	fmt.Printf("  [INDEX] %s generated\n", indexPath)
+	return nil
 }

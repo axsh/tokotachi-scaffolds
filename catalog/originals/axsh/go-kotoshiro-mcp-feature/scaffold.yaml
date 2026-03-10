@@ -1,0 +1,24 @@
+name: "axsh-go-kotoshiro-mcp"
+category: "feature"
+description: "AXSH Go Kotoshiro MCP Feature (Kuniumi-based)"
+depends_on:
+  - category: "project"
+    name: "axsh-go-standard"
+original_ref: "catalog/originals/axsh/go-kotoshiro-mcp-feature"
+placement:
+  base_dir: "features/{{feature_name}}"
+  conflict_policy: "skip"
+  template_config:
+    template_extension: ".tmpl"
+    strip_extension: true
+  file_mappings: []
+  post_actions: {}
+template_params:
+  - name: "module_path"
+    description: "Go module path"
+    required: true
+    default: "github.com/axsh/tokotachi/features/myfunction"
+  - name: "program_name"
+    description: "Program name"
+    required: true
+    default: "myfunction"

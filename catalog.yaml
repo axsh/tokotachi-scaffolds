@@ -1,41 +1,8 @@
-version: "1.0.0"
-
-default_scaffold: "default"
-
 scaffolds:
-  - name: "default"
-    category: "root"
-    description: "Tokotachi - The First of All"
-    template_ref: "catalog/templates/root/project-default"
-    original_ref: "catalog/originals/root/project-default"
-    placement_ref: "catalog/placements/default.yaml"
-    requirements:
-      directories: []
-      files: []
-  - name: "axsh-go-standard"
-    category: "project"
-    description: "AXSH Go Standard Project"
-    template_ref: "catalog/templates/axsh/go-standard-project"
-    original_ref: "catalog/originals/axsh/go-standard-project"
-    placement_ref: "catalog/placements/axsh/go-standard-project.yaml"
-    requirements:
-      directories: ["prompts", "scripts"]
-      files: []
-  - name: "axsh-go-standard"
-    category: "feature"
-    description: "AXSH Go Standard Feature"
-    template_ref: "catalog/templates/axsh/go-standard-feature"
-    original_ref: "catalog/originals/axsh/go-standard-feature"
-    placement_ref: "catalog/placements/axsh/go-standard-feature.yaml"
-    requirements:
-      directories: ["features"]
-      files: []
-    options:
-      - name: "feature_name"
-        description: "Feature name"
-        required: true
-        default: "myprog"
-      - name: "go_module"
-        description: "Go module base name"
-        required: false
-        default: "github.com/axsh/tokotachi/features"
+    feature:
+        axsh-go-kotoshiro-mcp: catalog/scaffolds/i/4/2/h.yaml
+        axsh-go-standard: catalog/scaffolds/b/i/b/l.yaml
+    project:
+        axsh-go-standard: catalog/scaffolds/8/w/4/o.yaml
+    root:
+        default: catalog/scaffolds/6/j/v/n.yaml
