@@ -15,26 +15,26 @@ import (
 var goModModuleRe = regexp.MustCompile(`(?m)^module\s+(.+)$`)
 
 // TransformGoMod transforms the module directive in a go.mod file.
-// It replaces oldModule with newModule in the "module" line.
-// Returns the transformed content, whether a change was made, and any error.
-func TransformGoMod(content []byte, oldModule, newModule string) ([]byte, bool, error) {
+// It replaces the module path with newModule unconditionally.
+// Returns the transformed content, the original module path, whether a change was made, and any error.
+func TransformGoMod(content []byte, newModule string) ([]byte, string, bool, error) {
 	src := string(content)
 
 	match := goModModuleRe.FindStringSubmatch(src)
 	if match == nil {
-		return content, false, nil
+		return content, "", false, nil
 	}
 
 	currentModule := strings.TrimSpace(match[1])
-	if currentModule != oldModule {
-		return content, false, nil
+	if currentModule == newModule {
+		return content, currentModule, false, nil
 	}
 
 	result := goModModuleRe.ReplaceAllStringFunc(src, func(line string) string {
 		return "module " + newModule
 	})
 
-	return []byte(result), true, nil
+	return []byte(result), currentModule, true, nil
 }
 
 // TransformGoSource transforms import paths in a Go source file.

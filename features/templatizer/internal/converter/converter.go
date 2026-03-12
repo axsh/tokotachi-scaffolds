@@ -62,6 +62,8 @@ func Convert(tempDir string, params ConvertParams) error {
 
 // BuildConvertParams constructs ConvertParams from catalog TemplateParams.
 // It extracts module_path and program_name parameters from the template params.
+// NewModule is set to template variable format (e.g. "{{module_path}}/{{program_name}}")
+// so that go.mod module line becomes a template placeholder.
 func BuildConvertParams(templateParams []catalog.TemplateParam) ConvertParams {
 	if len(templateParams) == 0 {
 		return ConvertParams{}
@@ -81,15 +83,21 @@ func BuildConvertParams(templateParams []catalog.TemplateParam) ConvertParams {
 		switch tp.Name {
 		case "module_path":
 			params.OldModule = oldValue
-			// For now, use old_value as the new value too.
-			// During actual scaffold execution, the user-provided value will be used.
-			params.NewModule = oldValue
 		case "program_name":
 			params.OldProgram = oldValue
 			params.NewProgram = oldValue
 		}
 		// Populate hint params with resolved old_value.
 		params.HintParams[tp.Name] = oldValue
+	}
+
+	// Construct template variable for module path in go.mod.
+	if _, hasModulePath := params.HintParams["module_path"]; hasModulePath {
+		if _, hasProgramName := params.HintParams["program_name"]; hasProgramName {
+			params.NewModule = "{{module_path}}/{{program_name}}"
+		} else {
+			params.NewModule = "{{module_path}}"
+		}
 	}
 
 	return params

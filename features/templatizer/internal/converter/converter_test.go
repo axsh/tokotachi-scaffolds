@@ -42,7 +42,7 @@ func TestConvert(t *testing.T) {
 
 		params := ConvertParams{
 			OldModule:  "old-org/old-app",
-			NewModule:  "github.com/new-org/new-app",
+			NewModule:  "{{module_path}}/{{program_name}}",
 			OldProgram: "old-app",
 			NewProgram: "new-app",
 			HintParams: map[string]string{
@@ -64,12 +64,12 @@ func TestConvert(t *testing.T) {
 		assertExists(t, tmpDir, "go.mod.tmpl")
 		assertNotExists(t, tmpDir, "go.mod")
 		goModContent := mustReadFile(t, filepath.Join(tmpDir, "go.mod.tmpl"))
-		assertContains(t, goModContent, "module github.com/new-org/new-app")
+		assertContains(t, goModContent, "module {{module_path}}/{{program_name}}")
 
 		// Step2: AST transform — main.go.tmpl should exist with transformed import
 		assertExists(t, tmpDir, filepath.Join("cmd", "new-app", "main.go.tmpl"))
 		mainContent := mustReadFile(t, filepath.Join(tmpDir, "cmd", "new-app", "main.go.tmpl"))
-		assertContains(t, mainContent, "github.com/new-org/new-app/internal/pkg")
+		assertContains(t, mainContent, "{{module_path}}/{{program_name}}/internal/pkg")
 
 		// Step2: non-transformed file should remain without .tmpl
 		assertExists(t, tmpDir, filepath.Join("internal", "pkg", "pkg.go"))
@@ -86,6 +86,55 @@ func TestConvert(t *testing.T) {
 		makefileContent := mustReadFile(t, filepath.Join(tmpDir, "Makefile.tmpl"))
 		assertContains(t, makefileContent, "APP=new-app")
 		assertContains(t, makefileContent, "MODULE=github.com/new-org/new-app")
+	})
+
+	t.Run("real-world scaffold: go.mod module mismatch with oldModule", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// go.mod with a module path that differs from OldModule (scaffold.yaml default).
+		mustWriteFile(t, filepath.Join(tmpDir, "go.mod"),
+			"module github.com/axsh/tokotachi-scaffolds/axsh/go-standard-feature\n\ngo 1.24.0\n")
+
+		// main.go with import using the actual go.mod module path.
+		mustWriteFile(t, filepath.Join(tmpDir, "main.go"),
+			"package main\n\nimport \"github.com/axsh/tokotachi-scaffolds/axsh/go-standard-feature/internal/pkg\"\n\nfunc main() {}\n")
+
+		// internal/pkg/pkg.go (no import to transform)
+		mustMkdir(t, filepath.Join(tmpDir, "internal", "pkg"))
+		mustWriteFile(t, filepath.Join(tmpDir, "internal", "pkg", "pkg.go"),
+			"package pkg\n\nfunc Hello() string { return \"hello\" }\n")
+
+		params := ConvertParams{
+			OldModule:  "github.com/axsh/tokotachi/features/myprog", // scaffold.yaml default (does NOT match go.mod)
+			NewModule:  "{{module_path}}/{{program_name}}",
+			OldProgram: "myprog",
+			NewProgram: "myprog",
+			HintParams: map[string]string{
+				"program_name": "myprog",
+				"module_path":  "github.com/axsh/tokotachi/features/myprog",
+			},
+		}
+
+		err := Convert(tmpDir, params)
+		if err != nil {
+			t.Fatalf("Convert() error: %v", err)
+		}
+
+		// go.mod.tmpl should exist with template variable.
+		assertExists(t, tmpDir, "go.mod.tmpl")
+		assertNotExists(t, tmpDir, "go.mod")
+		goModContent := mustReadFile(t, filepath.Join(tmpDir, "go.mod.tmpl"))
+		assertContains(t, goModContent, "module {{module_path}}/{{program_name}}")
+
+		// main.go.tmpl should exist with import transformed using discovered module path.
+		assertExists(t, tmpDir, "main.go.tmpl")
+		assertNotExists(t, tmpDir, "main.go")
+		mainContent := mustReadFile(t, filepath.Join(tmpDir, "main.go.tmpl"))
+		assertContains(t, mainContent, "{{module_path}}/{{program_name}}/internal/pkg")
+
+		// non-transformed file should remain without .tmpl
+		assertExists(t, tmpDir, filepath.Join("internal", "pkg", "pkg.go"))
+		assertNotExists(t, tmpDir, filepath.Join("internal", "pkg", "pkg.go.tmpl"))
 	})
 
 	t.Run("no template_params skips conversion", func(t *testing.T) {
@@ -128,6 +177,9 @@ func TestBuildConvertParamsOldValueFallback(t *testing.T) {
 		if params.HintParams["module_path"] != "github.com/axsh/tokotachi/features/myprog" {
 			t.Errorf("HintParams[module_path] = %q, want %q", params.HintParams["module_path"], "github.com/axsh/tokotachi/features/myprog")
 		}
+		if params.NewModule != "{{module_path}}/{{program_name}}" {
+			t.Errorf("NewModule = %q, want %q", params.NewModule, "{{module_path}}/{{program_name}}")
+		}
 	})
 
 	t.Run("explicit old_value takes priority over default", func(t *testing.T) {
@@ -149,6 +201,22 @@ func TestBuildConvertParamsOldValueFallback(t *testing.T) {
 		}
 		if params.OldProgram != "function" {
 			t.Errorf("OldProgram = %q, want %q", params.OldProgram, "function")
+		}
+		if params.NewModule != "{{module_path}}/{{program_name}}" {
+			t.Errorf("NewModule = %q, want %q", params.NewModule, "{{module_path}}/{{program_name}}")
+		}
+	})
+
+	t.Run("module_path only without program_name", func(t *testing.T) {
+		params := BuildConvertParams([]catalog.TemplateParam{
+			{
+				Name:    "module_path",
+				Default: "github.com/org/app",
+			},
+		})
+
+		if params.NewModule != "{{module_path}}" {
+			t.Errorf("NewModule = %q, want %q", params.NewModule, "{{module_path}}")
 		}
 	})
 }
