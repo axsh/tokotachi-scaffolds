@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/axsh/tokotachi-scaffolds/features/templatizer/internal/catalog"
 )
@@ -106,6 +107,16 @@ func BuildConvertParams(templateParams []catalog.TemplateParam) ConvertParams {
 		params.HintParams[tp.Name] = oldValue
 	}
 
+	// Strip feature_name suffix from module_path HintParams value.
+	// OldModule retains the full path for go.mod/go source replacement,
+	// but HintParams["module_path"] should represent only the prefix portion
+	// so that {{module_path}}/{{feature_name}} reconstructs the full path.
+	if featureName, ok := params.HintParams["feature_name"]; ok {
+		if mp, ok := params.HintParams["module_path"]; ok {
+			params.HintParams["module_path"] = stripFeatureNameSuffix(mp, featureName)
+		}
+	}
+
 	// Construct template variable for module path in go.mod.
 	if _, hasModulePath := params.HintParams["module_path"]; hasModulePath {
 		if _, hasFeatureName := params.HintParams["feature_name"]; hasFeatureName {
@@ -116,4 +127,18 @@ func BuildConvertParams(templateParams []catalog.TemplateParam) ConvertParams {
 	}
 
 	return params
+}
+
+// stripFeatureNameSuffix removes the trailing /<featureName> segment from
+// modulePath if it matches. Returns the original modulePath if there is
+// no match or if stripping would produce an empty string.
+func stripFeatureNameSuffix(modulePath, featureName string) string {
+	suffix := "/" + featureName
+	if strings.HasSuffix(modulePath, suffix) {
+		stripped := modulePath[:len(modulePath)-len(suffix)]
+		if stripped != "" {
+			return stripped
+		}
+	}
+	return modulePath
 }

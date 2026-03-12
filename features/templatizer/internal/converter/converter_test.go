@@ -187,8 +187,8 @@ func TestBuildConvertParamsOldValueFallback(t *testing.T) {
 		if params.OldProgram != "myprog" {
 			t.Errorf("OldProgram = %q, want %q", params.OldProgram, "myprog")
 		}
-		if params.HintParams["module_path"] != "github.com/axsh/tokotachi/features/myprog" {
-			t.Errorf("HintParams[module_path] = %q, want %q", params.HintParams["module_path"], "github.com/axsh/tokotachi/features/myprog")
+		if params.HintParams["module_path"] != "github.com/axsh/tokotachi/features" {
+			t.Errorf("HintParams[module_path] = %q, want %q", params.HintParams["module_path"], "github.com/axsh/tokotachi/features")
 		}
 		if params.NewModule != "{{module_path}}/{{feature_name}}" {
 			t.Errorf("NewModule = %q, want %q", params.NewModule, "{{module_path}}/{{feature_name}}")
@@ -230,6 +230,46 @@ func TestBuildConvertParamsOldValueFallback(t *testing.T) {
 
 		if params.NewModule != "{{module_path}}" {
 			t.Errorf("NewModule = %q, want %q", params.NewModule, "{{module_path}}")
+		}
+	})
+
+	t.Run("module_path suffix matches feature_name — suffix stripped for HintParams", func(t *testing.T) {
+		params := BuildConvertParams([]catalog.TemplateParam{
+			{
+				Name:    "module_path",
+				Default: "github.com/org/features/myapp",
+			},
+			{
+				Name:    "feature_name",
+				Default: "myapp",
+			},
+		})
+
+		if params.OldModule != "github.com/org/features/myapp" {
+			t.Errorf("OldModule = %q, want %q", params.OldModule, "github.com/org/features/myapp")
+		}
+		if params.HintParams["module_path"] != "github.com/org/features" {
+			t.Errorf("HintParams[module_path] = %q, want %q", params.HintParams["module_path"], "github.com/org/features")
+		}
+	})
+
+	t.Run("module_path suffix does not match feature_name — no stripping", func(t *testing.T) {
+		params := BuildConvertParams([]catalog.TemplateParam{
+			{
+				Name:    "module_path",
+				Default: "github.com/org/app",
+			},
+			{
+				Name:    "feature_name",
+				Default: "other",
+			},
+		})
+
+		if params.OldModule != "github.com/org/app" {
+			t.Errorf("OldModule = %q, want %q", params.OldModule, "github.com/org/app")
+		}
+		if params.HintParams["module_path"] != "github.com/org/app" {
+			t.Errorf("HintParams[module_path] = %q, want %q", params.HintParams["module_path"], "github.com/org/app")
 		}
 	})
 }
