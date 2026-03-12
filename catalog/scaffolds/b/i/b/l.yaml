@@ -16,5 +16,5 @@ scaffolds:
         - name: module_path
           description: Go module path
           required: true
-          default: github.com/axsh/tokotachi/features/myprog
+          default: github.com/axsh/tokotachi/features
           old_value: ""
