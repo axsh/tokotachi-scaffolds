@@ -8,13 +8,13 @@ scaffolds:
       template_ref: catalog/scaffolds/i/4/2/go-kotoshiro-mcp-feature.zip
       original_ref: catalog/originals/axsh/go-kotoshiro-mcp-feature
       template_params:
+        - name: feature_name
+          description: Feature name
+          required: true
+          default: myfunction
+          old_value: ""
         - name: module_path
           description: Go module path
           required: true
           default: github.com/axsh/tokotachi/features/myfunction
-          old_value: ""
-        - name: program_name
-          description: Program name
-          required: true
-          default: myfunction
           old_value: ""

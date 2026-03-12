@@ -17,8 +17,8 @@ template_params:
   - name: "module_path"
     description: "Go module path"
     required: true
-    default: "github.com/axsh/tokotachi/features/myprog"
-  - name: "program_name"
-    description: "Program name"
+    default: "github.com/axsh/tokotachi/features"
+  - name: "feature_name"
+    description: "Feature name"
     required: true
     default: "myprog"

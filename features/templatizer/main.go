@@ -65,8 +65,9 @@ func main() {
 	defs := result.Definitions
 	fmt.Printf("Discovered originals: %s\n", result.OriginalsDir)
 
-	// Convert ScaffoldDefinition to Scaffold.
+	// Convert ScaffoldDefinition to Scaffold and build placement map.
 	scaffolds := convertDefinitionsToScaffolds(defs)
+	placements := buildPlacementMap(defs)
 
 	// Validate dependency references and detect circular dependencies.
 	tempCat := &catalog.Catalog{Scaffolds: scaffolds}
@@ -79,14 +80,20 @@ func main() {
 
 	// Process each scaffold (template conversion + ZIP to temp).
 	zipPaths := make(map[string]string) // scaffoldKey -> tempZipPath
-	for _, s := range scaffolds {
-		tempZip, err := processScaffold(repoRoot, s)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error processing scaffold %q: %v\n", s.Name, err)
+	for i, s := range scaffolds {
+		key := s.Category + "/" + s.Name
+		placement := placements[key]
+		tempZip, pc, procErr := processScaffold(repoRoot, s, placement)
+		if procErr != nil {
+			fmt.Fprintf(os.Stderr, "Error processing scaffold %q: %v\n", s.Name, procErr)
 			os.Exit(1)
 		}
-		key := s.Category + "/" + s.Name
 		zipPaths[key] = tempZip
+
+		// Merge discovered template params with scaffold.yaml definitions.
+		if pc != nil && len(pc.Names()) > 0 {
+			scaffolds[i].TemplateParams = converter.MergeParams(s.TemplateParams, pc.Names())
+		}
 	}
 
 	// Generate shard files + move ZIPs to shard directories.
@@ -132,16 +139,26 @@ func convertDefinitionsToScaffolds(defs []catalog.ScaffoldDefinition) []catalog.
 	return scaffolds
 }
 
+// buildPlacementMap builds a map from scaffold key to Placement from ScaffoldDefinitions.
+func buildPlacementMap(defs []catalog.ScaffoldDefinition) map[string]*catalog.Placement {
+	placements := make(map[string]*catalog.Placement, len(defs))
+	for i := range defs {
+		key := defs[i].Category + "/" + defs[i].Name
+		placements[key] = defs[i].Placement
+	}
+	return placements
+}
+
 // processScaffold copies originals to a temp directory, runs template conversion,
-// creates a ZIP archive, and returns the path to the temp ZIP file.
+// creates a ZIP archive, and returns the path to the temp ZIP file and a ParamCollector.
 // The temp ZIP file will be moved to the shard directory by generateShardFiles.
-func processScaffold(repoRoot string, s catalog.Scaffold) (string, error) {
+func processScaffold(repoRoot string, s catalog.Scaffold, placement *catalog.Placement) (string, *converter.ParamCollector, error) {
 	originalDir := filepath.Join(repoRoot, s.OriginalRef)
 
 	// Create temporary directory for working copy.
 	tempDir, err := os.MkdirTemp("", "templatizer-*")
 	if err != nil {
-		return "", fmt.Errorf("failed to create temp directory: %w", err)
+		return "", nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
@@ -149,16 +166,25 @@ func processScaffold(repoRoot string, s catalog.Scaffold) (string, error) {
 
 	// Copy originals to temp directory.
 	if err := copier.CopyDir(originalDir, tempDir); err != nil {
-		return "", fmt.Errorf("failed to copy originals to temp: %w", err)
+		return "", nil, fmt.Errorf("failed to copy originals to temp: %w", err)
 	}
 
 	// Run template conversion pipeline if template_params are defined.
+	var pc *converter.ParamCollector
 	if len(s.TemplateParams) > 0 {
 		params := converter.BuildConvertParams(s.TemplateParams)
 		fmt.Printf("  [%s] Converting (module: %s -> %s)\n", s.Name, params.OldModule, params.NewModule)
-		if err := converter.Convert(tempDir, params); err != nil {
-			return "", fmt.Errorf("template conversion failed: %w", err)
+		pc, err = converter.Convert(tempDir, params)
+		if err != nil {
+			return "", nil, fmt.Errorf("template conversion failed: %w", err)
 		}
+	} else {
+		pc = converter.NewParamCollector()
+	}
+
+	// Collect template variables from placement.base_dir.
+	if placement != nil && placement.BaseDir != "" {
+		pc.AddFromString(placement.BaseDir)
 	}
 
 	// Create ZIP in a temp location.
@@ -167,11 +193,11 @@ func processScaffold(repoRoot string, s catalog.Scaffold) (string, error) {
 	fmt.Printf("  [%s] Archiving %s -> %s\n", s.Name, tempDir, tempZip)
 
 	if err := archiver.ZipDirectory(tempDir, tempZip); err != nil {
-		return "", fmt.Errorf("failed to create ZIP archive: %w", err)
+		return "", nil, fmt.Errorf("failed to create ZIP archive: %w", err)
 	}
 
 	fmt.Printf("  [%s] Done (temp cleaned up)\n", s.Name)
-	return tempZip, nil
+	return tempZip, pc, nil
 }
 
 // cleanScaffoldsDir removes the existing catalog/scaffolds/ directory

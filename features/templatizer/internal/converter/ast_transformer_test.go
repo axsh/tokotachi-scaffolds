@@ -50,8 +50,8 @@ func TestTransformGoMod(t *testing.T) {
 		{
 			name:           "replaces long module path (real-world scaffold case)",
 			input:          "module github.com/axsh/tokotachi-scaffolds/axsh/go-standard-feature\n\ngo 1.24.0\n",
-			newModule:      "{{module_path}}/{{program_name}}",
-			wantOutput:     "module {{module_path}}/{{program_name}}\n\ngo 1.24.0\n",
+			newModule:      "{{module_path}}/{{feature_name}}",
+			wantOutput:     "module {{module_path}}/{{feature_name}}\n\ngo 1.24.0\n",
 			wantOrigModule: "github.com/axsh/tokotachi-scaffolds/axsh/go-standard-feature",
 			wantChanged:    true,
 		},

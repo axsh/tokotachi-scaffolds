@@ -125,3 +125,44 @@ func sortByMatchLength(repls []HintReplacement) {
 		return len(repls[i].Match) > len(repls[j].Match)
 	})
 }
+
+// CollectHintTemplateVars scans all .hints files in tempDir and extracts
+// template variable names from replace_with fields. This should be called
+// before ProcessHints since ProcessHints removes .hints files.
+func CollectHintTemplateVars(tempDir string) ([]string, error) {
+	var allVars []string
+	seen := make(map[string]bool)
+
+	err := filepath.WalkDir(tempDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".hints") {
+			return nil
+		}
+
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return fmt.Errorf("failed to read hints file %s: %w", path, readErr)
+		}
+
+		var hints HintFile
+		if parseErr := yaml.Unmarshal(data, &hints); parseErr != nil {
+			return fmt.Errorf("failed to parse hints file %s: %w", path, parseErr)
+		}
+
+		for _, repl := range hints.Replacements {
+			for _, v := range ExtractTemplateVars(repl.ReplaceWith) {
+				if !seen[v] {
+					seen[v] = true
+					allVars = append(allVars, v)
+				}
+			}
+		}
+
+		return nil
+	})
+
+	sort.Strings(allVars)
+	return allVars, err
+}
