@@ -13,8 +13,8 @@ scaffolds:
           required: true
           default: github.com/axsh/tokotachi/features/myprog
           old_value: ""
-        - name: program_name
-          description: Program name
+        - name: feature_name
+          description: Feature name
           required: true
           default: myprog
           old_value: ""
