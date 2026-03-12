@@ -22,13 +22,13 @@ func TestProcessHints(t *testing.T) {
 				mustWriteFile(t, filepath.Join(dir, "Makefile"), "APP_NAME=old-app\nMODULE=github.com/old-org/old-app\n")
 				mustWriteFile(t, filepath.Join(dir, "Makefile.hints"), `replacements:
   - match: "old-app"
-    replace_with: "{{program_name}}"
+    replace_with: "{{feature_name}}"
   - match: "github.com/old-org/old-app"
     replace_with: "{{module_path}}"
 `)
 			},
 			params: map[string]string{
-				"program_name": "new-app",
+				"feature_name": "new-app",
 				"module_path":  "github.com/new-org/new-app",
 			},
 			wantFiles: map[string]string{
@@ -43,16 +43,16 @@ func TestProcessHints(t *testing.T) {
 				mustWriteFile(t, filepath.Join(dir, "Makefile"), "old-app")
 				mustWriteFile(t, filepath.Join(dir, "Makefile.hints"), `replacements:
   - match: "old-app"
-    replace_with: "{{program_name}}"
+    replace_with: "{{feature_name}}"
 `)
 				mustWriteFile(t, filepath.Join(dir, "Dockerfile"), "FROM old-app")
 				mustWriteFile(t, filepath.Join(dir, "Dockerfile.hints"), `replacements:
   - match: "old-app"
-    replace_with: "{{program_name}}"
+    replace_with: "{{feature_name}}"
 `)
 			},
 			params: map[string]string{
-				"program_name": "new-app",
+				"feature_name": "new-app",
 			},
 			wantFiles: map[string]string{
 				"Makefile.tmpl":   "new-app",
@@ -88,11 +88,11 @@ func TestProcessHints(t *testing.T) {
 				mustWriteFile(t, filepath.Join(dir, "scripts", "build.sh"), "old-app build")
 				mustWriteFile(t, filepath.Join(dir, "scripts", "build.sh.hints"), `replacements:
   - match: "old-app"
-    replace_with: "{{program_name}}"
+    replace_with: "{{feature_name}}"
 `)
 			},
 			params: map[string]string{
-				"program_name": "new-app",
+				"feature_name": "new-app",
 			},
 			wantFiles: map[string]string{
 				"scripts/build.sh.tmpl": "new-app build",
