@@ -1,4 +1,4 @@
-name: "axsh-go-kotoshiro-mcp"
+name: "kotoshiro-go-mcp"
 category: "feature"
 description: "AXSH Go Kotoshiro MCP Feature (Kuniumi-based)"
 depends_on:
@@ -12,7 +12,10 @@ placement:
     template_extension: ".tmpl"
     strip_extension: true
   file_mappings: []
-  post_actions: {}
+  post_actions:
+    file_permissions:
+      - pattern: "scripts/*.sh"
+        executable: true
 template_params:
   - name: "module_path"
     description: "Go module path"
