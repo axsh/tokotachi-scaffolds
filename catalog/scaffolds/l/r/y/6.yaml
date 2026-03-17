@@ -1,7 +1,7 @@
 scaffolds:
     - name: kotoshiro-go-mcp
       category: feature
-      description: AXSH Go Kotoshiro MCP Feature (Kuniumi-based)
+      description: Go Kotoshiro MCP Feature
       depends_on:
         - category: project
           name: axsh-go-standard

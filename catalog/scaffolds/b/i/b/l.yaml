@@ -1,7 +1,7 @@
 scaffolds:
     - name: axsh-go-standard
       category: feature
-      description: AXSH Go Standard Feature
+      description: Go Standard Feature
       depends_on:
         - category: project
           name: axsh-go-standard
