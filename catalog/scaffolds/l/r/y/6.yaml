@@ -1,11 +1,11 @@
 scaffolds:
-    - name: axsh-go-kotoshiro-mcp
+    - name: kotoshiro-go-mcp
       category: feature
       description: AXSH Go Kotoshiro MCP Feature (Kuniumi-based)
       depends_on:
         - category: project
           name: axsh-go-standard
-      template_ref: catalog/scaffolds/i/4/2/go-kotoshiro-mcp-feature.zip
+      template_ref: catalog/scaffolds/l/r/y/go-kotoshiro-mcp-feature.zip
       original_ref: catalog/originals/axsh/go-kotoshiro-mcp-feature
       template_params:
         - name: feature_name
