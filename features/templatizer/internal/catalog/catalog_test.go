@@ -535,7 +535,7 @@ func TestScaffoldHash(t *testing.T) {
 			{"root", "default"},
 			{"project", "axsh-go-standard"},
 			{"feature", "axsh-go-standard"},
-			{"feature", "axsh-go-kotoshiro-mcp"},
+			{"feature", "kotoshiro-go-mcp"},
 			{"a", "b"},
 		}
 		for _, in := range inputs {
@@ -706,7 +706,7 @@ func TestBuildCatalogIndex(t *testing.T) {
 		{Name: "default", Category: "root"},
 		{Name: "axsh-go-standard", Category: "project"},
 		{Name: "axsh-go-standard", Category: "feature"},
-		{Name: "axsh-go-kotoshiro-mcp", Category: "feature"},
+		{Name: "kotoshiro-go-mcp", Category: "feature"},
 	}
 
 	index := BuildCatalogIndex(scaffolds)
@@ -718,7 +718,7 @@ func TestBuildCatalogIndex(t *testing.T) {
 	require.Contains(t, index.Scaffolds["project"], "axsh-go-standard")
 	require.Contains(t, index.Scaffolds, "feature")
 	require.Contains(t, index.Scaffolds["feature"], "axsh-go-standard")
-	require.Contains(t, index.Scaffolds["feature"], "axsh-go-kotoshiro-mcp")
+	require.Contains(t, index.Scaffolds["feature"], "kotoshiro-go-mcp")
 
 	// Verify paths contain "catalog/scaffolds/" prefix.
 	for _, categoryMap := range index.Scaffolds {

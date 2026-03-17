@@ -107,15 +107,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Write meta.yaml to top-level.
-	if err := writeMetaCatalog(baseDir, "1.0.0", "default"); err != nil {
+	// Write meta.yaml to repo root.
+	if err := writeMetaCatalog(repoRoot, "1.0.0", "default"); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Write catalog.yaml (index) to top-level.
+	// Write catalog.yaml (index) to repo root.
 	index := catalog.BuildCatalogIndex(scaffolds)
-	if err := writeCatalogIndex(baseDir, index); err != nil {
+	if err := writeCatalogIndex(repoRoot, index); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
