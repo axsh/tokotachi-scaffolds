@@ -166,4 +166,98 @@ func TestMergeParams(t *testing.T) {
 			t.Errorf("Default = %q, want %q", got[0].Default, "github.com/org/app")
 		}
 	})
+
+	t.Run("auto-added param has default ValueSpec", func(t *testing.T) {
+		maxBytes := 512
+		defined := []catalog.TemplateParam{
+			{
+				Name:        "module_path",
+				Description: "Go module path",
+				Required:    true,
+				ValueSpec: &catalog.ValueSpec{
+					Type: "string",
+					Length: &catalog.LengthSpec{
+						MaxBytes: &maxBytes,
+					},
+				},
+			},
+		}
+		got := MergeParams(defined, []string{"feature_name", "module_path"})
+
+		// feature_name should be auto-added with default ValueSpec.
+		var featureParam *catalog.TemplateParam
+		var moduleParam *catalog.TemplateParam
+		for i := range got {
+			switch got[i].Name {
+			case "feature_name":
+				featureParam = &got[i]
+			case "module_path":
+				moduleParam = &got[i]
+			}
+		}
+
+		if featureParam == nil {
+			t.Fatalf("'feature_name' not found in merged params")
+		}
+		if featureParam.ValueSpec == nil {
+			t.Fatalf("auto-added param 'feature_name' should have ValueSpec, got nil")
+		}
+		if featureParam.ValueSpec.Type != "string" {
+			t.Errorf("auto-added ValueSpec.Type = %q, want %q", featureParam.ValueSpec.Type, "string")
+		}
+		if featureParam.ValueSpec.Length == nil || featureParam.ValueSpec.Length.MaxBytes == nil {
+			t.Fatalf("auto-added ValueSpec.Length.MaxBytes should not be nil")
+		}
+		if *featureParam.ValueSpec.Length.MaxBytes != 256 {
+			t.Errorf("auto-added ValueSpec.Length.MaxBytes = %d, want 256", *featureParam.ValueSpec.Length.MaxBytes)
+		}
+
+		// module_path should preserve its original ValueSpec.
+		if moduleParam == nil {
+			t.Fatalf("'module_path' not found in merged params")
+		}
+		if moduleParam.ValueSpec == nil {
+			t.Fatalf("'module_path' should preserve its ValueSpec, got nil")
+		}
+		if moduleParam.ValueSpec.Length == nil || moduleParam.ValueSpec.Length.MaxBytes == nil {
+			t.Fatalf("'module_path' ValueSpec.Length.MaxBytes should not be nil")
+		}
+		if *moduleParam.ValueSpec.Length.MaxBytes != 512 {
+			t.Errorf("'module_path' ValueSpec.Length.MaxBytes = %d, want 512 (should be preserved)", *moduleParam.ValueSpec.Length.MaxBytes)
+		}
+	})
+
+	t.Run("preserves existing ValueSpec from defined", func(t *testing.T) {
+		maxBytes := 512
+		defined := []catalog.TemplateParam{
+			{
+				Name:     "module_path",
+				Required: true,
+				ValueSpec: &catalog.ValueSpec{
+					Type: "string",
+					Length: &catalog.LengthSpec{
+						MaxBytes: &maxBytes,
+					},
+					Format: &catalog.FormatSpec{
+						Pattern: "^[a-zA-Z0-9._/-]+$",
+					},
+				},
+			},
+		}
+		got := MergeParams(defined, []string{"module_path"})
+
+		if len(got) != 1 {
+			t.Fatalf("MergeParams() returned %d params, want 1", len(got))
+		}
+		vs := got[0].ValueSpec
+		if vs == nil {
+			t.Fatalf("ValueSpec should be preserved, got nil")
+		}
+		if vs.Length == nil || vs.Length.MaxBytes == nil || *vs.Length.MaxBytes != 512 {
+			t.Errorf("ValueSpec.Length.MaxBytes should be 512")
+		}
+		if vs.Format == nil || vs.Format.Pattern != "^[a-zA-Z0-9._/-]+$" {
+			t.Errorf("ValueSpec.Format.Pattern should be preserved")
+		}
+	})
 }

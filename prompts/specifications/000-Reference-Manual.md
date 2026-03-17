@@ -197,6 +197,54 @@ scaffolds:
 | `required` | 必須かどうか（`true` の場合、CLI で入力を促す） |
 | `default` | デフォルト値 |
 | `old_value` | テンプレート変換時の置換元値（省略時は `default` が使用される） |
+| `value_spec` | パラメータ値のバリデーション仕様（省略可、下記参照） |
+
+#### 値仕様 (`value_spec`)
+
+パラメータに入力される値の型やバリデーションルールを定義します。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `type` | string | パラメータの型。`string`（文字列）または `number`（整数）。デフォルト: `string` |
+| `length` | object | 長さ制約 |
+| `length.max_bytes` | int | 最大バイト数 |
+| `length.max_chars` | int | 最大文字数（ルーン数） |
+| `length.max_digits` | int | 最大桁数（`number` 型の場合） |
+| `format` | object | フォーマット制約 |
+| `format.pattern` | string | Go `regexp` 互換の正規表現パターン |
+| `range` | object | 範囲制約（JSONSchema スタイル） |
+| `range.minimum` | float64 | 最小値（包含） |
+| `range.maximum` | float64 | 最大値（包含） |
+| `range.exclusive_minimum` | float64 | 最小値（排他） |
+| `range.exclusive_maximum` | float64 | 最大値（排他） |
+| `enum` | []string | 許可される値のリスト |
+
+**記述例:**
+
+```yaml
+template_params:
+  - name: "module_path"
+    description: "Go module path"
+    required: true
+    default: "github.com/axsh/tokotachi/features/myfunction"
+    value_spec:
+      type: string
+      length:
+        max_bytes: 256
+      format:
+        pattern: "^[a-zA-Z0-9._/-]+$"
+  - name: "port_number"
+    description: "Server port"
+    required: false
+    default: "8080"
+    value_spec:
+      type: number
+      range:
+        minimum: 1
+        maximum: 65535
+```
+
+**デフォルト挙動:** templatizer が未定義のテンプレート変数を自動追加する際、`type: string`, `max_bytes: 256` の `value_spec` がデフォルトとして付与されます。`scaffold.yaml` に既に `value_spec` が記載されているパラメータは上書きされません。
 
 #### 予約済みパラメータ名
 
