@@ -13,8 +13,21 @@ scaffolds:
           required: true
           default: myfunction
           old_value: ""
+          value_spec:
+            type: string
+            length:
+                max_bytes: 64
+                max_chars: 32
+            format:
+                pattern: ^[a-z][a-z0-9_-]*$
         - name: module_path
           description: Go module path
           required: true
           default: github.com/axsh/tokotachi/features/myfunction
           old_value: ""
+          value_spec:
+            type: string
+            length:
+                max_bytes: 256
+            format:
+                pattern: ^[a-zA-Z0-9._/-]+$

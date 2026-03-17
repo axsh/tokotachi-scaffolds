@@ -150,6 +150,166 @@ scaffolds:
 	}
 }
 
+func TestParseCatalogWithValueSpec(t *testing.T) {
+	t.Run("string type with length and format", func(t *testing.T) {
+		input := `version: "1.0.0"
+scaffolds:
+  - name: "test"
+    category: "feature"
+    description: "Test"
+    template_ref: "ref"
+    original_ref: "ref"
+    template_params:
+      - name: "module_path"
+        description: "Go module path"
+        required: true
+        value_spec:
+          type: string
+          length:
+            max_bytes: 256
+          format:
+            pattern: "^[a-zA-Z0-9._/-]+$"
+`
+		cat, err := ParseCatalog([]byte(input))
+		require.NoError(t, err)
+		require.NotEmpty(t, cat.Scaffolds)
+		require.Len(t, cat.Scaffolds[0].TemplateParams, 1)
+
+		vs := cat.Scaffolds[0].TemplateParams[0].ValueSpec
+		require.NotNil(t, vs)
+		assert.Equal(t, "string", vs.Type)
+		require.NotNil(t, vs.Length)
+		require.NotNil(t, vs.Length.MaxBytes)
+		assert.Equal(t, 256, *vs.Length.MaxBytes)
+		assert.Nil(t, vs.Length.MaxChars)
+		require.NotNil(t, vs.Format)
+		assert.Equal(t, "^[a-zA-Z0-9._/-]+$", vs.Format.Pattern)
+		assert.Nil(t, vs.Range)
+		assert.Nil(t, vs.Enum)
+	})
+
+	t.Run("number type with range", func(t *testing.T) {
+		input := `version: "1.0.0"
+scaffolds:
+  - name: "test"
+    category: "feature"
+    description: "Test"
+    template_ref: "ref"
+    original_ref: "ref"
+    template_params:
+      - name: "port_number"
+        description: "Server port"
+        required: false
+        default: "8080"
+        value_spec:
+          type: number
+          range:
+            minimum: 1
+            maximum: 65535
+`
+		cat, err := ParseCatalog([]byte(input))
+		require.NoError(t, err)
+		require.NotEmpty(t, cat.Scaffolds)
+
+		vs := cat.Scaffolds[0].TemplateParams[0].ValueSpec
+		require.NotNil(t, vs)
+		assert.Equal(t, "number", vs.Type)
+		assert.Nil(t, vs.Length)
+		assert.Nil(t, vs.Format)
+		require.NotNil(t, vs.Range)
+		require.NotNil(t, vs.Range.Minimum)
+		assert.Equal(t, float64(1), *vs.Range.Minimum)
+		require.NotNil(t, vs.Range.Maximum)
+		assert.Equal(t, float64(65535), *vs.Range.Maximum)
+		assert.Nil(t, vs.Range.ExclusiveMinimum)
+		assert.Nil(t, vs.Range.ExclusiveMaximum)
+	})
+
+	t.Run("enum constraint", func(t *testing.T) {
+		input := `version: "1.0.0"
+scaffolds:
+  - name: "test"
+    category: "feature"
+    description: "Test"
+    template_ref: "ref"
+    original_ref: "ref"
+    template_params:
+      - name: "build_mode"
+        description: "Build mode"
+        required: true
+        value_spec:
+          type: string
+          enum:
+            - "debug"
+            - "release"
+`
+		cat, err := ParseCatalog([]byte(input))
+		require.NoError(t, err)
+		require.NotEmpty(t, cat.Scaffolds)
+
+		vs := cat.Scaffolds[0].TemplateParams[0].ValueSpec
+		require.NotNil(t, vs)
+		assert.Equal(t, "string", vs.Type)
+		require.NotNil(t, vs.Enum)
+		assert.Equal(t, []string{"debug", "release"}, vs.Enum)
+	})
+
+	t.Run("without value_spec returns nil", func(t *testing.T) {
+		input := `version: "1.0.0"
+scaffolds:
+  - name: "test"
+    category: "feature"
+    description: "Test"
+    template_ref: "ref"
+    original_ref: "ref"
+    template_params:
+      - name: "module_path"
+        description: "Go module path"
+        required: true
+`
+		cat, err := ParseCatalog([]byte(input))
+		require.NoError(t, err)
+		require.NotEmpty(t, cat.Scaffolds)
+		require.Len(t, cat.Scaffolds[0].TemplateParams, 1)
+		assert.Nil(t, cat.Scaffolds[0].TemplateParams[0].ValueSpec)
+	})
+
+	t.Run("scaffold definition with value_spec", func(t *testing.T) {
+		yaml := `
+name: "test"
+category: "feature"
+description: "Test scaffold"
+original_ref: "catalog/originals/test"
+template_params:
+  - name: "feature_name"
+    description: "Feature name"
+    required: true
+    default: "myfunction"
+    value_spec:
+      type: string
+      length:
+        max_bytes: 64
+        max_chars: 32
+      format:
+        pattern: "^[a-z][a-z0-9_-]*$"
+`
+		def, err := ParseScaffoldDefinition([]byte(yaml))
+		require.NoError(t, err)
+		require.Len(t, def.TemplateParams, 1)
+
+		vs := def.TemplateParams[0].ValueSpec
+		require.NotNil(t, vs)
+		assert.Equal(t, "string", vs.Type)
+		require.NotNil(t, vs.Length)
+		require.NotNil(t, vs.Length.MaxBytes)
+		assert.Equal(t, 64, *vs.Length.MaxBytes)
+		require.NotNil(t, vs.Length.MaxChars)
+		assert.Equal(t, 32, *vs.Length.MaxChars)
+		require.NotNil(t, vs.Format)
+		assert.Equal(t, "^[a-z][a-z0-9_-]*$", vs.Format.Pattern)
+	})
+}
+
 func TestParseCatalogWithDependsOn(t *testing.T) {
 	tests := []struct {
 		name         string

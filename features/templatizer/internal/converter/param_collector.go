@@ -95,8 +95,9 @@ func MergeParams(defined []catalog.TemplateParam, discovered []string) []catalog
 			// Auto-add undiscovered param with warning.
 			fmt.Fprintf(os.Stderr, "  [WARN] Template variable {{%s}} found during conversion but not defined in scaffold.yaml template_params. Auto-adding.\n", name)
 			merged[name] = catalog.TemplateParam{
-				Name:     name,
-				Required: true,
+				Name:      name,
+				Required:  true,
+				ValueSpec: catalog.DefaultValueSpec(),
 			}
 		}
 	}

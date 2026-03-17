@@ -11,13 +11,55 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ValueSpec defines validation rules for a template parameter value.
+type ValueSpec struct {
+	Type   string      `yaml:"type,omitempty"`   // "string" or "number"
+	Length *LengthSpec `yaml:"length,omitempty"`
+	Format *FormatSpec `yaml:"format,omitempty"`
+	Range  *RangeSpec  `yaml:"range,omitempty"`
+	Enum   []string    `yaml:"enum,omitempty"`
+}
+
+// LengthSpec defines length constraints for parameter values.
+type LengthSpec struct {
+	MaxBytes  *int `yaml:"max_bytes,omitempty"`
+	MaxChars  *int `yaml:"max_chars,omitempty"`
+	MaxDigits *int `yaml:"max_digits,omitempty"`
+}
+
+// FormatSpec defines format constraints using regular expressions.
+type FormatSpec struct {
+	Pattern string `yaml:"pattern,omitempty"`
+}
+
+// RangeSpec defines numeric range constraints (JSONSchema style).
+type RangeSpec struct {
+	Minimum          *float64 `yaml:"minimum,omitempty"`
+	Maximum          *float64 `yaml:"maximum,omitempty"`
+	ExclusiveMinimum *float64 `yaml:"exclusive_minimum,omitempty"`
+	ExclusiveMaximum *float64 `yaml:"exclusive_maximum,omitempty"`
+}
+
+// DefaultValueSpec returns the default ValueSpec for auto-added parameters.
+// Type: "string", MaxBytes: 256.
+func DefaultValueSpec() *ValueSpec {
+	maxBytes := 256
+	return &ValueSpec{
+		Type: "string",
+		Length: &LengthSpec{
+			MaxBytes: &maxBytes,
+		},
+	}
+}
+
 // TemplateParam represents a single template conversion parameter.
 type TemplateParam struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Required    bool   `yaml:"required"`
-	Default     string `yaml:"default,omitempty"`
-	OldValue    string `yaml:"old_value"`
+	Name        string     `yaml:"name"`
+	Description string     `yaml:"description"`
+	Required    bool       `yaml:"required"`
+	Default     string     `yaml:"default,omitempty"`
+	OldValue    string     `yaml:"old_value"`
+	ValueSpec   *ValueSpec `yaml:"value_spec,omitempty"`
 }
 
 // DependencyRef represents a reference to a dependency scaffold.
