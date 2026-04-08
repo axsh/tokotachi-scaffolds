@@ -29,7 +29,7 @@ if [ -f "$REGISTRY_JSON" ]; then
 fi
 
 echo "Building production image: $IMAGE_PROD"
-docker build -t "$IMAGE_PROD" -f container/prod/Dockerfile .
+docker build --target prod -t "$IMAGE_PROD" -f container/Dockerfile .
 
 if [ -z "$REGISTRY" ]; then
   echo "Image built. To push to a registry, set REGISTRY and run again, e.g.:"
